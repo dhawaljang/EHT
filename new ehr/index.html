@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Healthcare Records</title>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Healthcare Records</h1>
+
+    <label for="name">Name:</label>
+    <input type="text" id="name"><br><br>
+
+    <label for="age">Age:</label>
+    <input type="number" id="age"><br><br>
+
+    <button onclick="addPatient()">Add Patient</button><br><br>
+
+    <label for="patientName">Patient Name:</label>
+    <input type="text" id="patientName"><br><br>
+
+    <label for="treatment">Treatment:</label>
+    <input type="text" id="treatment"><br><br>
+
+    <label for="treatmentDate">Treatment Date:</label>
+    <input type="text" id="treatmentDate"><br><br>
+
+    <button onclick="addTreatment()">Add Treatment</button><br><br>
+
+    <label for="getPatientName">Get Patient Details (Name):</label>
+    <input type="text" id="getPatientName"><br><br>
+
+    <button onclick="getPatient()">Get Patient</button><br><br>
+
+    <label for="assignAddress">Address to Assign Role:</label>
+    <input type="text" id="assignAddress"><br><br>
+
+    <label for="assignRole">Role to Assign:</label>
+    <select id="assignRole">
+        <option value="0">Patient</option>
+        <option value="1">Healthcare Provider</option>
+    </select><br><br>
+
+    <button onclick="assignRole()">Assign Role</button><br><br>
+
+    <div id="patientDetails"></div>
+
+    <script>
+        const socket = io();
+
+        socket.on('recognized_faces', function(data) {
+            const faces = data.faces;
+            const facesDiv = document.getElementById('recognized-faces');
+            facesDiv.innerHTML = faces.length > 0 ? `Recognized Faces: ${faces.join(', ')}` : 'Recognized Faces: None';
+            if (faces.length > 0) {
+                document.getElementById('getPatientName').value = faces[0];
+                getPatient();  // Automatically get patient details
+            }
+        });
+
+        // Check if MetaMask is installed
+        if (typeof window.ethereum !== 'undefined') {
+            window.ethereum.request({ method: 'eth_requestAccounts' });
+            window.ethereum.on('disconnect', function() {
+                alert("MetaMask disconnected");
+            });
+        }
+
+        // Initialize Web3
+        const web3 = new Web3(window.ethereum);
+        // Set the contract address and ABI
+        const contractAddress = '0xedB906F0d80Ca0A614dbBB568C375501a4cE0307'; // Replace with your contract address
+        const abi = [
+      {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "operation",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "gasUsed",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "timestamp",
+          "type": "uint256"
+        }
+      ],
+      "name": "GasUsed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "patientAddr",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "timestamp",
+          "type": "uint256"
+        }
+      ],
+      "name": "PatientAccessed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "patientAddr",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "timestamp",
+          "type": "uint256"
+        }
+      ],
+      "name": "PatientModified",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "storageSize",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "timestamp",
+          "type": "uint256"
+        }
+      ],
+      "name": "StorageUsed",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "creditPool",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "constant": true
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "patientList",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "constant": true
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "patients",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "internalType": "uint256",
+          "name": "age",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "constant": true
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "userRoles",
+      "outputs": [
+        {
+          "internalType": "enum records.Role",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "constant": true
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_name",
+          "type": "string"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_age",
+          "type": "uint256"
+        }
+      ],
+      "name": "addPatient",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function",
+      "payable": true
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_patientName",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_newTreatment",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_newTreatmentDate",
+          "type": "string"
+        }
+      ],
+      "name": "addNewTreatment",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_name",
+          "type": "string"
+        }
+      ],
+      "name": "getPatient",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        },
+        {
+          "internalType": "string[]",
+          "name": "",
+          "type": "string[]"
+        },
+        {
+          "internalType": "string[]",
+          "name": "",
+          "type": "string[]"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function",
+      "payable": true
+    },
+    {
+      "inputs": [],
+      "name": "getNumberOfPatients",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "constant": true
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_name",
+          "type": "string"
+        }
+      ],
+      "name": "getPatientAddressByName",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "constant": true
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_user",
+          "type": "address"
+        },
+        {
+          "internalType": "enum records.Role",
+          "name": "_role",
+          "type": "uint8"
+        }
+      ],
+      "name": "assignRole",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getStorageSize",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ] ;// Replace with your contract ABI
+  // Initialize the contract
+  const contract = new web3.eth.Contract(abi, contractAddress);
+
+        // Function to add a new patient
+        async function addPatient() {
+            const name = document.getElementById("name").value;
+            const age = document.getElementById("age").value;
+
+            const receipt = await contract.methods.addPatient(name, age).send({ from: window.ethereum.selectedAddress, value: web3.utils.toWei('0.1', 'ether') });
+            alert("Patient added successfully!");
+
+            // Log gas used
+            console.log("Gas used for addPatient:", receipt.gasUsed);
+
+            // Log storage used
+            const storageSize = await contract.methods.getStorageSize().call();
+            console.log("Storage size after addPatient:", storageSize);
+        }
+
+        // Function to add a new treatment
+        async function addTreatment() {
+            const patientName = document.getElementById("patientName").value;
+            const treatment = document.getElementById("treatment").value;
+            const treatmentDate = document.getElementById("treatmentDate").value;
+
+            const receipt = await contract.methods.addNewTreatment(patientName, treatment, treatmentDate).send({ from: window.ethereum.selectedAddress });
+            alert("Treatment added successfully!");
+
+            // Log gas used
+            console.log("Gas used for addNewTreatment:", receipt.gasUsed);
+
+            // Log storage used
+            const storageSize = await contract.methods.getStorageSize().call();
+            console.log("Storage size after addNewTreatment:", storageSize);
+        }
+
+        // Function to get patient details
+        async function getPatient() {
+            const patientName = document.getElementById("getPatientName").value;
+
+            const result = await contract.methods.getPatient(patientName).call();
+            document.getElementById("patientDetails").innerHTML = `
+                <p>Name: ${result[0]}</p>
+                <p>Treatments: ${result[1].join(', ')}</p>
+                <p>Treatment Dates: ${result[2].join(', ')}</p>
+                <p>Age: ${result[3]}</p>
+            `;
+
+            // Log gas used (simulated call, no receipt)
+            const initialGas = await web3.eth.estimateGas({ to: contractAddress, data: contract.methods.getPatient(patientName).encodeABI() });
+            console.log("Gas used for getPatient (estimate):", initialGas);
+        }
+
+        // Function to assign role
+        async function assignRole() {
+            const address = document.getElementById("assignAddress").value;
+            const role = document.getElementById("assignRole").value;
+
+            const receipt = await contract.methods.assignRole(address, role).send({ from: window.ethereum.selectedAddress });
+            alert("Role assigned successfully!");
+
+            // Log gas used
+            console.log("Gas used for assignRole:", receipt.gasUsed);
+        }
+    </script>
+</body>
+</html>
